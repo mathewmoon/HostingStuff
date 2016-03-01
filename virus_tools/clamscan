@@ -1,0 +1,54 @@
+#!/bin/bash
+rm -f $0
+echo -e "
+####################################################################\n
+
+---------Running ClamAV $(date) ------------\n
+
+####################################################################\n"
+
+freshclam &>/dev/null
+if [[ $? != 0 ]]; then
+	echo -e "Clamscan is not installed\n";
+	if [[ -d '/usr/local/cpanel' ]]; then
+		if [[ -d /usr/local/cpanel/modules-install ]]; then
+			echo -e "Installing ClamAV Connector for cPanel\nThis may take a while.\n"
+			cd $(find /usr/local/cpanel/modules-install/ -type d|grep clam);
+			./install 2>/dev/null 2>&1
+			echo -e "Done installing, Running freshclam.\n";
+			freshclam>/dev/null
+			echo -e "Done updating ClamAV.\n"
+		else
+			echo "You will need to install ClamAV Connector in WHM. Check to make sure WHM is up to date also. It looks old and tired.\n"
+			exit
+		fi
+	elif [[ -d /usr/local/directadmin ]]; then
+		echo -e "Building ClamAV with DirectAdmin custombuild tool.\nThis may take a while.\n"
+		/usr/local/directadmin/custombuild/build update
+		/usr/local/directadmin/custombuild/build set clamav yes
+		/usr/local/directadmin/custombuild/build clamav
+		echo -e "Done installing, Running freshclam.\n";
+		freshclam>/dev/null
+		echo -e "Done updating ClamAV.\n"
+	else
+		if [[ -d '/usr/local/psa' ]]; then
+			echo -e "ClamAV is not installed and the Panel is Plesk.\n Best to use a different scanner or do this manually.\n"
+		else
+			echo -e "ClamAV is not installed and there in no control panel.\n Installation aborted.\n"
+		fi
+		exit
+	fi
+fi
+
+if [[ -d '/usr/local/psa' ]]; then
+	dir='/var/www/vhosts'
+
+else
+	dir='/home'
+fi
+
+
+clamscan -ir ${dir}|tee /root/support/clamscan.log
+
+grep FOUND /root/support/clamscan.log|cut -d: -f1|xargs chmod 000 2>/dev/null
+grep FOUND /root/support/clamscan.log|cut -d: -f1|xargs ls -l

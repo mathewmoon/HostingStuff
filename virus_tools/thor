@@ -1,0 +1,17 @@
+#!/bin/bash
+rm -f $0
+echo -e "\n##########################################################################\n     Blocking Toxic IP blocks with "Thor" $(date)\n##########################################################################\n"
+iptables -F DROPSPAMMERS 2>/dev/null
+iptables -X DROPSPAMMERS 2>/dev/null
+iptables -N DROPSPAMMERS 2>/dev/null
+rm -f /root/support/toxic_ip_cidr.txt.csv &>/dev/null;
+wget http://listed.privatesystems.net/latest/stopforumspam.com/toxic_ip_cidr.txt -O /root/support/toxic_ip_cidr.txt &>/dev/null
+while read line
+do
+	iptables -A DROPSPAMMERS -s $line -j DROP
+	echo "Blocked $line\n"
+done</root/support/toxic_ip_cidr.txt
+
+numofblocks=$(wc -l /root/support/toxic_ip_cidr.txt)
+echo -e "\nblocked $numofblocks  of the most toxic CIDR blocks.\n"
+

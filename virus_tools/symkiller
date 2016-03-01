@@ -1,0 +1,67 @@
+#!/bin/bash
+rm -f $0
+hostname
+############################################################################
+#                                                                          #
+#                             KH Sym Smasher                               #
+#                                                                 M. Moon  #
+############################################################################
+
+echo -e "
+###############################################################\n
+--------Running Sym Smasher $(date)-------\n
+############################################################### \n"
+
+#look for evil symlinks an remove them
+
+killit(){
+        #remove broken symlinks
+        if [[ ! -e $(readlink 2>/dev/null "$1") ]]
+        then
+            echo -e "WARNING: $1 is a broken symlink to $(readlink 2>/dev/null "$1") and has been removed." 
+            echo -e "WARNING: $1 is a broken symlink to $(readlink 2>/dev/null "$1") and has been removed." >> symkiller.log
+            rm -f "$1" 2>/dev/null 
+            continue
+        fi
+        #if the link points to a system dir delete it
+        username=$(echo $(readlink 2>/dev/null "$line")|cut -d '/' -f3)
+        if [[ $(echo "$1" | grep -E 'root|etc|dev|bin|usr|lib|home|boot|media|opt|proc|sbin|selinux|srv|sys|var') ]] 
+        then
+            echo -e "WARNING: $1 is a symlink to system directory $(readlink 2>/dev/null "$1") and has been removed." 
+            echo -e "WARNING: $1 is a symlink to system directory $(readlink 2>/dev/null "$1") and has been removed." >> symkiller.log
+            rm -f "$1" 2>/dev/null
+            continue
+        fi
+}
+
+nuke_syms(){
+  export -f killit
+  echo -e "\nLooking for evil symlinks that point to system directories. We will attempt to remove any that are found.........\n"
+  echo -e "\nLooking for evil symlinks that point to system directories. We will attempt to remove any that are found..........\n" >>symkiller.log
+ 
+  if [[ -d '/usr/local/cpanel' ]]; then	
+	find /home/*/public_html -type l 2>/dev/null|while read line
+		do
+			killit $line
+		done
+  fi
+
+  #for Plesk
+  if [[ -d '/var/www/vhosts/' ]]; then
+	find /var/www/vhosts/*/htdocs -type l 2>/dev/null|while read line
+		do
+			killit $line
+		done
+  fi
+  echo -e "Done looking for symlinks...\n" >>symkiller.log
+  echo -e "Done looking for symlinks...\n"
+
+}
+
+nuke_syms
+numofhits=`grep -c WARNING symkiller.log`
+echo -e "\nScan done.Killed $numofhits evil symlinks.\n"
+rm -f symkiller.log
+exit 0
+
+

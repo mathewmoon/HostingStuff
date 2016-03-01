@@ -1,0 +1,83 @@
+#!/bin/bash
+function get_panel(){
+  if [[ -d /usr/local/cpanel ]]; then
+    echo 'cPanel'
+  elif [[ -d /usr/local/directadmin ]]; then
+    echo 'DirectAdmin'
+  elif [[ -d /usr/local/psa ]]; then
+    echo 'Plesk'
+  else
+    echo 'Unknown Panel'
+  fi
+}  
+
+function find_spammers(){
+find /usr/local/apache/domlogs /var/www/vhosts/*/statistics/logs/access_log /var/log/httpd/domains -type f -maxdepth 1 2>/dev/null|egrep -v 'bytes_log|ftpx|error\.log|ftp_log'|while read line
+        do
+                num=$(comm -12 <(wget -qO- http://listed.privatesystems.net/latest/stopforumspam.com/bannedips.csv|sort) <(awk '{print $1}' $line|sort|uniq)|wc -l)
+		if [[ $num != '0' ]]; then
+	                echo -e "$(echo $line|sed 's/^.*domlogs\/\|^.*\/vhosts\/\|\/statistics\/.*//g') has been visited by $num known bots"
+		fi
+        done
+}
+
+function stats(){
+echo -e "\n########### System info ############"
+echo "$(hostname) $(date)"
+uname -a
+echo -e "$(get_panel) running on $(cat /etc/redhat-release)\n"
+
+echo -e "\n########### Current Resources ############"
+echo -e "\nThere are currently $(ps aux|wc -l) Running processes:\n"
+top -n1 -b|head -6
+free -m
+
+if [[ ! -e /usr/bin/sar ]]; then
+  echo -e "Package sar is not installed. Installing it now. SAR should have some useful data saved after 12-24 hours\n"
+  yum install -qy syssstat >/dev/null &
+else
+  echo -e "\n##########  Load average stats  ###########"
+  sar -q|egrep -v '^$' |egrep -v "Linux|^$"
+  
+  echo -e "\n##########  Memory Stats  ###########"
+  sar -r |egrep -v "Linux|^$"
+
+  echo -e "\n##########  Packet error stats  ###########"
+  sar -n EDEV|egrep -v "Linux|^$"
+fi
+}
+
+function spammers(){
+echo -e "\n################## Looking for bot addresses in domlogs. This may take a while. ####################\n"
+find_spammers
+echo -e "\n"
+}
+
+function traffic(){
+echo -e "\n############# Compiling traffic report. Looking for suphp log ###############\n"
+echo "***Report is of traffic since 12AM server time***"
+if [[ ! -e /usr/local/apache/logs/suphp_log ]] && [[ ! -e /etc/httpd/logs/suphp_log ]] && [[ ! -e /var/log/suphp.log ]]; then
+  echo -e "Can't find a suPHP log. We will have to rely on the domlogs. This will report\nthe total number of requests vs the total number of \ncalls to a particular script that the suPHP log would tell us. \n"
+  if [[ $(get_panel) == 'cPanel' ]]; then
+    cut -d: -f1 /etc/userdomains |sed 's/^/\/usr\/local\/apache\/domlogs\//'|xargs grep -sc $(date +"%d/%b/%Y")|grep -v ':0'|sed 's/^.*\/domlogs\///g'|sort -t: -k2 -nr
+  elif [[ $(get_panel) == 'Plesk' ]]; then
+    ls -l /var/qmail/mailnames|awk '{print $9}'|xargs find '/var/www/vhosts' 2>/dev/null|cut -d / -f1,2,3,4,5|uniq|sed 's/$/\/statistics\/logs\/access_log/'|xargs grep -sc $(date +"%d/%b/%Y")|grep -v ':0'|sed 's/^.*vhosts\/\|\/statistics\/logs\/access_log//g'|sort -t: -k2 -nr
+  elif [[ $(get_panel)=='DirectAdmin' ]]; then
+    find /var/log/httpd/domains -name *.log|egrep -v '.bytes|error'|xargs grep -sc $(date +"%d/%b/%Y")|grep -v ':0'|sort -t: -k2 -nr
+  else
+    echo -e "Can't find the domlogs\n"
+  fi
+else
+  if [[ $(get_panel) == 'cPanel' ]]; then
+    grep "`date +'%b %d'`" /usr/local/apache/logs/suphp_log|awk '{print $8}'|sort|uniq -c|sort -nr|egrep '[0-9]'|awk '{print $2,"total hits=",$1}'
+  elif [[ $(get_panel) == 'Plesk' ]]; then
+    grep "`date +'%b %d'`" /etc/apache/logs/suphp_log|awk '{print $8}'|sort|uniq -c|sort -nr|egrep '[0-9]'|awk '{print $2,"total hits=",$1}'
+  elif [[ $(get_panel)=='DirectAdmin' ]]; then
+    grep "`date +'%b %d'`" /var/log/suphp.log|awk '{print $8}'|sort|uniq -c|sort -nr|egrep '[0-9]'|awk '{print $2,"total hits=",$1}'
+  else
+    echo -e "Can't find the suPHP log\n"  
+  fi
+fi
+
+}
+$1

@@ -1,0 +1,50 @@
+#!/usr/bin/php
+<?php
+@ini_set('memory_limit','512M');
+@ini_set('disable_functions','');
+exec("rm -f /root/support/banhammer");
+exec("rm -f /root/support/bannedips.csv &>/dev/null");
+@$date=date('r');
+echo "********************************************************\nRunning Banhammer5000 (A php ripoff of Banhammer in perl)\nRun on $date\n********************************************************\n";
+set_time_limit(0);
+echo "Removed old RBL copy and downloading new one\n";
+exec("rm -f /root/support/bannedips.csv &>/dev/null");
+exec("wget http://67.222.0.119/rbls/latest/stopforumspam.com/bannedips.csv -O /root/support/bannedips.csv &>/dev/null");
+echo "Got it!\n";
+echo "Compiling list of IP addresses from domlogs\n";
+
+function domlog(){
+  if(is_dir('/usr/local/cpanel')){
+    exec("cut -d: -f1 /etc/trueuserdomains|sed 's/^/\/usr\/local\/apache\/domlogs\//g'|xargs tail -n 5000|grep -v '==>'|awk '{print $1}'|sort|uniq",$domlog);
+  }
+  if(is_dir('/usr/local/psa')){
+	exec("find /var/www/vhosts/ -name access.log|xargs tail -n 5000|grep -v '===>'|awk '{print $1}'|sort|uniq",$domlog);
+  }
+  if(is_dir('/usr/local/directadmin')){
+	exec("find /var/log/httpd/domains -name *.log|grep -v 'error.log'|xargs tail -n 5000|grep -v '===>'|awk '{print $1}'|sort|uniq",$domlog);
+  }	
+  return $domlog;
+}
+
+function hammerTime($domlog){
+  $count=count($domlog);
+  echo "Compiled $count IP addresses to check\n"; 
+  echo "Finding matches\n";
+  $i=0;
+  exec("service iptables restart>/dev/null");
+  $rbl=explode(',',file_get_contents('/root/support/bannedips.csv'));
+
+  $i=0;
+  $result=array_intersect($rbl,$domlog);
+  foreach($result as $client){
+	if($client!=''){
+		exec("iptables -I INPUT -s $client -j DROP");
+	        echo "Dropped $client\n";
+		$i++;
+	}
+  }
+  echo -e "\n$i matches made and blocked\n";
+}
+hammerTime(domlog());
+?>  
+
