@@ -1,0 +1,70 @@
+
+======================================================================================================================================================
+#Here is a one liner that will give a customer some basic confirmation of a ucpc update:
+ 
+cat /var/cpanel/updatelogs/`ll -t /var/cpanel/updatelogs/|grep 'update'|sed -n 1p|awk '{print $9}'`|grep -e completed -e complete|grep -v Checking
+grep complete /var/cpanel/updatelogs/`ll -t /var/cpanel/updatelogs/|grep 'update'|sed -n 1p|awk '{print $9}'`|grep -v Checking
+====================================================================================================================================================== 
+This will print the number of lines in the domlogs of each site that the current Httpd process has written to since the first of the hour. 
+
+netstat -apn | egrep -m 1 ":80\ "|egrep LISTEN\|WAITING|awk '{print $7}'|cut -d / -f1|head -1|xargs lsof -p|grep -E \(domlogs\|statistics\/logs\/access\)|grep -v bytes_log|awk '{print $9}'|xargs grep -c $(date +"%d/%b/%Y:%H")|grep -v ':0'|sed 's/\/var\/www\/vhosts\/\|\/statistics\/logs\/access_log\|\/statistics\/logs\/access_ssl_log\|\/usr\/local\/apache\/domlogs\///g'
+pidof httpd|awk '{print $1}'|xargs lsof -p|grep -E \(domlogs\|statistics\/logs\/access\)|grep -v bytes_log|awk '{print $9}'|xargs grep -c $(date +"%d/%b/%Y:%H")|grep -v ':0'|sed 's/\/var\/www\/vhosts\/\|\/statistics\/logs\/access_log\|\/statistics\/logs\/access_ssl_log//g'
+
+#Plesk
+ls -l /var/qmail/mailnames|awk '{print $9}'|xargs find '/var/www/vhosts' 2>/dev/null|cut -d / -f1,2,3,4,5|uniq|sed 's/$/\/statistics\/logs\/access_log/'|xargs grep -sc '10/Mar/2013:0'
+
+#cPanel
+cut -d: -f1 /etc/userdomains |sed 's/^/\/usr\/local\/apache\/domlogs\//'|xargs grep -sc $(date +"%d/%b/%Y")|grep -v ':0'|sed 's/\/usr\/local\/apache\/domlogs\///'|sort -t: -k2 -nr
+
+#Direc Admin
+find /var/log/httpd/domains -name *.log|egrep -v '.bytes|error'|xargs grep -sc $(date +"%d/%b/%Y")
+
+=======================================================================================================================================================
+#Clear qmail queue
+find /var/qmail/queue -type f|egrep -v pid\|lock\|bounce|xargs rm -f
+
+#Get number of messages in queue
+/var/qmail/bin/qmail-qstat
+
+
+
+=======================================================================================================================================================
+If plesk always shows "Default Webpage" for a domain:
+
+/usr/local/psa/admin/bin/httpdmng --reconfigure-all 
+=======================================================================================================================================================
+#checking for wp-login ddos
+
+#print matches in suphp log for cPanel
+grep "`date +'%b %d'`" /usr/local/apache/logs/suphp_log|awk '{print $8}'|sort|uniq -c|sort -nr|egrep '[0-9]{5}'|awk '{print $2,"total hits=",$1}'
+
+#Plesk
+grep "`date +'%b %d'`" /etc/apache/logs/suphp_log|awk '{print $8}'|sort|uniq -c|sort -nr|egrep '[0-9]{5}'|awk '{print $2,"total hits=",$1}'
+
+#get list of IP addresses
+grep 'login' /usr/local/apache/domlogs/*|grep "`date +"%d/%b/%Y"`"|cut -d: -f2|awk '{print $1}'|uniq -c|sort -nr|egrep '[0-9]{2}\ '
+
+#check in suexec log
+grep `date +'%Y-%m-%d'` /var/log/httpd/suexec_log|sed 's/^.*uid://g'|sort|uniq -c|awk '{print $2,$1 }'|sed 's/^.*[0-9]+*\/\|)//g'|sort -nrk2
+=======================================================================================================================================================
+#get list of IP addresses used to send SMTP for a domain in exim
+
+grep <domain name> /var/log/exim_mainlog|grep login|sed -n -e 's/.*\(\[.*\]\).*/\1/p'|sort|uniq -c
+
+=======================================================================================================================================================
+########BanHammer in one line!!!!!!!!!!!!!###################
+
+comm -12 <(wget -qO- http://test47.knownhost.com/rbls/latest/stopforumspam.com/bannedips.csv) <(find /usr/local/apache/domlogs /var/www/vhosts/*/statistics/logs/access_log /var/log/httpd/domains -type f 2>/dev/null|egrep -v 'bytes_log|ftpx|error\.log'|xargs awk '{print $1}'|egrep -v '\=|[a-zA-Z]|0-9]{4}'|sort|uniq)|xargs -i -t sh -c "eval iptables -A INPUT -j DROP -s {}"
+
+=======================================================================================================================================================
+#realtime clamscan watcher
+
+pgrep clam|head -1|xargs -i lsof -p '{}'|tail -1
+=======================================================================================================================================================
+
+
+
+test47.knownhost.com support/sxQ8hegN
+
+
+--Mathew

@@ -1,0 +1,90 @@
+#!/bin/bash
+file=
+str=
+subject=
+pwd=
+user=
+type=
+
+USAGE=$(cat<<'EOF'
+Kpaste 
+Sends a file or a string to a paste bin and returns a url.
+
+Options and Args:
+-F <filename> Paste from file (Cannot be combined with -s)
+-d <string> Paste string as a file
+-p <password> For making pastes that require a login
+-u <username> For use with -p
+-s <subject> Cannot be used with "-t quick"
+-t <type> Type of paste. See below for details
+-h Print this message
+
+Usage:
+
+***Basics***
+-F Files must be regular files. Temporary file pipes like <(do something) as a file won't work. This is due to POST rejecting
+files if $_FILES['file']['name'] is empty.If anyone has a work around for this I would love to hear it. You can however pipe
+into paste to send as a string, ie: "cat somefile.txt|paste". This will always be sent as a string, meaning that sending a filename
+to paste via "echo file.txt|paste -F" will result in a file whose content is "file.txt" instead of the contents of the original
+file.  
+
+***Paste types***
+There are 4 types of pastes:
+quick-Does not require any options other than -F or -d. Pastes are anonymous and will not be searchable. They are removed
+      after 48 hours. There is no metadata attached to the paste, so if you lose the url you are boned. This is the default
+      type and does not require the use of -t.
+public-Requires username (-u) and pwd (-p) to paste, but not to view. A paste is considered public because it can be viewed 
+       by anyone by a search. When using this type you may optionally pass -s <string> to give the paste a subject line for 
+       easy referencing later.
+private-Same as public, but it is not indexed by searches, meaning you have to know he url to view the paste.
+protected-Same as private except it requires a username/pwd validation to view. 
+
+***Examples***
+kpaste -F somefile.txt //This will paste a file where anyone is allowed to view it and return a url
+kpaste -F somefile.txt -u bob -p ubersecretpwd -t private //Pastes a file that cannot be viewed unless you know the url
+kpaste -F somefile.txt -u bob -p password -t protected //Not cannot be viewed unless logged in as the author of the paste
+kpaste -d "hello world" //will create a paste that says "hello world"
+kpaste -d "howdy" -t private -s "my paste" -u bob -p password //Creates a paste that says "howdy" with a subject line of "my paste" and is viewable by anyone who knows the url.
+
+***STDOUT to Kpaste ***
+There are two ways to dynamically generate data for Kpaste. One is to use the output of a commmand as the arguement to -d:
+kpaste -d $(grep something somewhere.txt)
+
+The other is to pipe into it:
+find -type f|kpaste
+
+Note that this method does not require any arguements or options at all, but with either method all other options and arguements
+are available and used in the same way you normally would.
+
+Enjoy
+--Mathew M.
+EOF
+)
+
+while getopts ":F:p:u:s:d:t:h" opt
+do
+	case $opt in
+		F)	file="-F file=@$OPTARG"	;;
+		p)	pwd="-F pwd=$OPTARG" ;;
+		u)	user="-F user=$OPTARG" ;; 
+		s)	subject="-F subject=$OPTARG" ;;
+		d)	str="-F str=$OPTARG" ;;
+		t)	type="-F type=$OPTARG" ;;
+		h)	echo "$USAGE"
+			exit ;;
+	esac
+done
+
+if [[ -z $file ]] && [[ -z $str ]]; then
+	str="$(cat </dev/stdin)"
+	if [[ $str != '' ]]; then
+		str="-F str="$str
+	fi
+fi
+
+#echo "$str"
+#exit
+
+curl -k "$str" $type $subject $pwd $user $file https://paste.privatesystems.net 2>/dev/null
+
+

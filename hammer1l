@@ -1,0 +1,8 @@
+#!/bin/bash
+comm -12 <(wget -O- http://test47.knownhost.com/rbls/latest/stopforumspam.com/bannedips.csv|sed 's/,/\n/g'|sort) <(find /usr/local/apache/domlogs /var/log/httpd/domains /var/www/vhosts/*/logs/access_log -type f|egrep -v 'bytes_log|ftpx|error\.log'|xargs tail|grep -v '==>'|awk '{print $1}'|sed '/^$/d'|sort|uniq)|xargs -i -t sh -c "eval iptables -A INPUT -j DROP -s {}"
+
+
+
+
+
+

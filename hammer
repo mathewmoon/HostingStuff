@@ -1,0 +1,11 @@
+#!/bin/bash
+wget http://test47.knownhost.com/rbls/latest/stopforumspam.com/bannedips.csv -O bannedips
+sed -i 's/,/\n/g' bannedips
+echo -e "Compiling a list of addresses from domlogs\n"
+comm -12 <(sort bannedips) <(find /usr/local/apache/domlogs -type f|egrep -v 'bytes_log|ftpx'|xargs tail|grep -v '==>'|awk '{print $1}'|sed '/^$/d'|sort|uniq)>banned
+echo -e "$(wc -l banned) Addresses found\nBlocking addresses\n"
+while read ip
+do
+	iptables -A INPUT -s $ip -j DROP
+	echo "Blocked $ip"
+done<banned
